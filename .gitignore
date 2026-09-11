@@ -1,0 +1,50 @@
+@'
+# --- secrets, never commit ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.python-version
+
+# --- uv ---
+.uv/
+
+# --- FastAPI / uvicorn runtime ---
+*.log
+*.pid
+
+# --- database / local dev ---
+*.sqlite3
+*.db
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- editor / IDE ---
+.vscode/
+.idea/
+*.swp
+
+# --- alembic (keep migrations, ignore local sqlite if used for testing) ---
+# migrations/versions/ stays tracked - do not ignore that folder
+
+# --- audio/image uploads if stored locally during dev ---
+uploads/
+tmp/
+'@ | Add-Content -Encoding UTF8 -Path ".gitignore"
+
+Write-Host "--- .gitignore now contains ---"
+Get-Content .gitignore
+
+scripts/

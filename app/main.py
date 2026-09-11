@@ -9,6 +9,8 @@ from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.middleware.auth import AuthMiddleware
 from app.api.routes import narratives, documents, followups, review_queue, auth as auth_routes
+from app.routers import narratives
+from app.routers import summaries
 
 settings = get_settings()
 
@@ -61,3 +63,5 @@ app.include_router(narratives.router, prefix="/narratives", tags=["narratives"])
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(followups.router, prefix="/followups", tags=["followups"])
 app.include_router(review_queue.router, prefix="/review-queue", tags=["review-queue"])
+app.include_router(narratives.router)
+app.include_router(summaries.router)

@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     otp_ttl_seconds: int = 300
 
     sarvam_api_key: str = ""
+    groq_api_key: str = ""
     google_ai_studio_api_key: str = ""
     google_calendar_client_id: str = ""
     google_calendar_client_secret: str = ""
@@ -25,6 +26,7 @@ class Settings(BaseSettings):
 
     env: str = "development"
     log_level: str = "INFO"
+    debug: bool = True  # flip False before any judge-facing / production deploy
 
 
 @lru_cache

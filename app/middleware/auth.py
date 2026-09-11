@@ -8,7 +8,7 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-PUBLIC_PATHS = {"/health", "/auth/otp/request", "/auth/otp/verify", "/docs", "/openapi.json"}
+PUBLIC_PATHS = {"/health", "/auth/otp/request", "/auth/otp/verify", "/auth/dev-login", "/docs", "/openapi.json"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
