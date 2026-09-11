@@ -1,4 +1,4 @@
-from functools import lru_cache
+﻿from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     google_calendar_client_id: str = ""
     google_calendar_client_secret: str = ""
     google_calendar_redirect_uri: str = "http://localhost:8000/auth/google/callback"
+
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     env: str = "development"
     log_level: str = "INFO"
