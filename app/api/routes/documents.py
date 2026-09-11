@@ -1,12 +1,16 @@
 ﻿"""D-01/D-02: Document upload + OCR extraction route.
 Upload image -> save locally -> run OCR (Gemini) -> store Document row,
 status always "pending_review" (mirrors H-03 pattern for consistency).
+
+Also exposes list/get/review for the human-review queue.
+Note: Document has no reviewed_by/reviewed_at columns (unlike Summary) -
+only status can be updated here, per current schema.
 """
-import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -22,8 +26,15 @@ ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 @router.get("/")
-async def placeholder():
-    return {"detail": "documents router alive"}
+async def list_documents(
+    status: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Document)
+    if status:
+        q = q.filter(Document.status == status)
+    documents = q.order_by(Document.created_at.desc()).all()
+    return [_serialize(d) for d in documents]
 
 
 @router.post("/upload")
@@ -64,11 +75,50 @@ async def upload_document(
     db.commit()
     db.refresh(document)
 
+    return _serialize(document)
+
+
+@router.get("/{document_id}")
+async def get_document(document_id: uuid.UUID, db: Session = Depends(get_db)):
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if document is None:
+        raise HTTPException(404, "Document not found")
+    return _serialize(document)
+
+
+class ReviewDocumentRequest(BaseModel):
+    decision: str  # 'reviewed' | 'actioned' | 'rejected'
+
+
+@router.post("/{document_id}/review")
+async def review_document(
+    document_id: uuid.UUID,
+    body: ReviewDocumentRequest,
+    db: Session = Depends(get_db),
+):
+    if body.decision not in ("reviewed", "actioned", "rejected"):
+        raise HTTPException(400, "decision must be one of: reviewed, actioned, rejected")
+
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if document is None:
+        raise HTTPException(404, "Document not found")
+
+    document.status = body.decision
+    db.commit()
+    db.refresh(document)
+
+    return _serialize(document)
+
+
+def _serialize(d: Document) -> dict:
     return {
-        "id": document.id,
-        "patient_id": document.patient_id,
-        "source_image_ref": document.source_image_ref,
-        "extracted_text": document.extracted_text,
-        "status": document.status,
-        "created_at": document.created_at,
+        "id": d.id,
+        "patient_id": d.patient_id,
+        "source_image_ref": d.source_image_ref,
+        "extracted_text": d.extracted_text,
+        "simplified_text": d.simplified_text,
+        "translated_text": d.translated_text,
+        "hallucination_flagged": d.hallucination_flagged,
+        "status": d.status,
+        "created_at": d.created_at,
     }

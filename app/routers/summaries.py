@@ -2,14 +2,18 @@
 Wires: Narrative.transcript_english -> fact_extraction + interpretation (N-01/02/03)
 -> schema validation with retry (N-04) -> risk-gate (H-01/H-02) -> Summary row,
 status ALWAYS "pending_review" (H-03). No auto-finalization path exists here.
+
+Also exposes /summaries list/get/review for the human-review queue.
 """
 import uuid
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.db.models import Narrative, Summary
+from app.db.models import Narrative, Summary, Staff
 from app.services.fact_extraction import extract_facts
 from app.services.interpretation import interpret_facts
 from app.services.nlp_validation import call_with_retry, FACTS_SCHEMA, INTERPRETATION_SCHEMA, NLPValidationError
@@ -46,13 +50,76 @@ async def summarize_narrative(narrative_id: uuid.UUID, db: Session = Depends(get
     db.commit()
     db.refresh(summary)
 
+    return _serialize_summary(summary)
+
+
+summaries_router = APIRouter(prefix="/summaries", tags=["summaries"])
+
+
+@summaries_router.get("/")
+async def list_summaries(
+    status: str | None = Query(default=None),
+    flagged: bool | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Summary)
+    if status:
+        q = q.filter(Summary.status == status)
+    if flagged is not None:
+        q = q.filter(Summary.flagged == flagged)
+    summaries = q.order_by(Summary.created_at.desc()).all()
+    return [_serialize_summary(s) for s in summaries]
+
+
+@summaries_router.get("/{summary_id}")
+async def get_summary(summary_id: uuid.UUID, db: Session = Depends(get_db)):
+    summary = db.query(Summary).filter(Summary.id == summary_id).first()
+    if summary is None:
+        raise HTTPException(404, "Summary not found")
+    return _serialize_summary(summary)
+
+
+class ReviewSummaryRequest(BaseModel):
+    staff_id: uuid.UUID
+    decision: str  # 'reviewed' | 'actioned' | 'rejected'
+
+
+@summaries_router.post("/{summary_id}/review")
+async def review_summary(
+    summary_id: uuid.UUID,
+    body: ReviewSummaryRequest,
+    db: Session = Depends(get_db),
+):
+    if body.decision not in ("reviewed", "actioned", "rejected"):
+        raise HTTPException(400, "decision must be one of: reviewed, actioned, rejected")
+
+    summary = db.query(Summary).filter(Summary.id == summary_id).first()
+    if summary is None:
+        raise HTTPException(404, "Summary not found")
+
+    staff = db.query(Staff).filter(Staff.id == body.staff_id).first()
+    if staff is None:
+        raise HTTPException(404, "Staff not found")
+
+    summary.status = body.decision
+    summary.reviewed_by = staff.id
+    summary.reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(summary)
+
+    return _serialize_summary(summary)
+
+
+def _serialize_summary(s: Summary) -> dict:
     return {
-        "id": summary.id,
-        "narrative_id": summary.narrative_id,
-        "status": summary.status,
-        "facts_json": summary.facts_json,
-        "interpretation_text": summary.interpretation_text,
-        "flagged": summary.flagged,
-        "flag_reasons": summary.flag_reasons,
-        "created_at": summary.created_at,
+        "id": s.id,
+        "narrative_id": s.narrative_id,
+        "status": s.status,
+        "facts_json": s.facts_json,
+        "interpretation_text": s.interpretation_text,
+        "flagged": s.flagged,
+        "flag_reasons": s.flag_reasons,
+        "reviewed_by": s.reviewed_by,
+        "reviewed_at": s.reviewed_at,
+        "created_at": s.created_at,
     }

@@ -1,4 +1,4 @@
-﻿"""FastAPI application entrypoint - F-03: API Gateway / BFF skeleton."""
+"""FastAPI application entrypoint - F-03: API Gateway / BFF skeleton."""
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -8,9 +8,8 @@ from fastapi.responses import JSONResponse
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.middleware.auth import AuthMiddleware
-from app.api.routes import narratives, documents, followups, review_queue, auth as auth_routes
-from app.routers import narratives
-from app.routers import summaries
+from app.api.routes import documents, review_queue, auth as auth_routes
+from app.routers import narratives, followups, summaries, chat
 
 settings = get_settings()
 
@@ -29,6 +28,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,5 +63,6 @@ app.include_router(narratives.router, prefix="/narratives", tags=["narratives"])
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(followups.router, prefix="/followups", tags=["followups"])
 app.include_router(review_queue.router, prefix="/review-queue", tags=["review-queue"])
-app.include_router(narratives.router)
+app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(summaries.router)
+app.include_router(summaries.summaries_router)
